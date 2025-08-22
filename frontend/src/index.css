@@ -97,16 +97,16 @@
 
 @layer utilities {
   .glass-effect {
-    @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-sm;
+    @apply bg-white/80 backdrop-blur-md border border-white/30 shadow-sm;
   }
   
   .glass-card {
-    @apply glass-effect rounded-xl transition-all duration-300 hover:shadow-md;
+    @apply glass-effect rounded-xl transition-all duration-300 hover:shadow-lg;
   }
 
   .animate-in {
     @apply opacity-0;
-    animation: fade-in 0.5s ease forwards;
+    animation: fade-in 0.4s ease forwards;
   }
 
   .animate-in-delay-100 {
@@ -120,18 +120,45 @@
   .animate-in-delay-300 {
     animation-delay: 300ms;
   }
+
+  .animate-pulse-subtle {
+    animation: pulse-subtle 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .chat-message {
+    @apply transform transition-all duration-200 ease-in-out;
+  }
+
+  .chat-message:hover {
+    @apply scale-[1.01];
+  }
 }
 
-/* Animation for page transitions */
+@keyframes fade-in {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+/* Smooth page transitions */
 .page-transition-enter {
   opacity: 0;
-  transform: translateY(20px);
+  transform: translateY(10px);
 }
 
 .page-transition-enter-active {
   opacity: 1;
   transform: translateY(0);
-  transition: opacity 400ms, transform 400ms;
+  transition: opacity 300ms, transform 300ms;
 }
 
 .page-transition-exit {
@@ -141,6 +168,20 @@
 
 .page-transition-exit-active {
   opacity: 0;
-  transform: translateY(-20px);
-  transition: opacity 400ms, transform 400ms;
+  transform: translateY(-10px);
+  transition: opacity 300ms, transform 300ms;
+}
+
+/* Plural Logo Animations */
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+.animate-blink {
+  animation: blink 1s infinite;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.8s ease-out forwards;
 }

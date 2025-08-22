@@ -25,12 +25,6 @@ export interface StoryResponse {
   duration: 'short' | 'medium';
 }
 
-export interface DescriptionResponse {
-  description: string;
-  originalImage: string;
-  ageGroup: AgeGroup;
-}
-
 export interface FeedbackResponse {
   feedback: string;
   type: string;
@@ -50,6 +44,25 @@ export interface SafetyCheckResponse {
   };
   content: string;
   ageGroup: AgeGroup;
+}
+
+export interface ChatMessage {
+  id: string;
+  type: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+}
+
+export interface ChatResponse {
+  response: string;
+  mode: string;
+  ageGroup: AgeGroup;
+  contextLength: number;
+  subject?: string;
+  socraticMode?: string;
+  duration?: string;
+  topic?: string;
+  type?: string;
 }
 
 class EducationalApiClient {
@@ -109,13 +122,15 @@ class EducationalApiClient {
     question: string,
     subject: string,
     ageGroup: AgeGroup,
-    studentResponse?: string
+    studentResponse?: string,
+    mode: 'socratic' | 'answer-first' | 'deep-dive' = 'socratic'
   ): Promise<ApiResponse<SocraticResponse>> {
     return this.makeRequest<SocraticResponse>('/api/socratic', {
       question,
       subject,
       ageGroup,
       studentResponse,
+      mode,
     });
   }
 
@@ -128,16 +143,6 @@ class EducationalApiClient {
       topic,
       ageGroup,
       duration,
-    });
-  }
-
-  async describeImage(
-    imageDescription: string,
-    ageGroup: AgeGroup
-  ): Promise<ApiResponse<DescriptionResponse>> {
-    return this.makeRequest<DescriptionResponse>('/api/describe', {
-      imageDescription,
-      ageGroup,
     });
   }
 
@@ -170,6 +175,26 @@ class EducationalApiClient {
     return this.makeRequest<SafetyCheckResponse>('/api/safety-check', {
       content,
       ageGroup,
+    });
+  }
+
+  async sendChatMessage(
+    message: string,
+    mode: string,
+    ageGroup: AgeGroup,
+    context?: ChatMessage[],
+    subject?: string,
+    socraticMode?: string,
+    duration?: string
+  ): Promise<ApiResponse<ChatResponse>> {
+    return this.makeRequest<ChatResponse>('/api/chat', {
+      message,
+      mode,
+      ageGroup,
+      context,
+      subject,
+      socraticMode,
+      duration,
     });
   }
 

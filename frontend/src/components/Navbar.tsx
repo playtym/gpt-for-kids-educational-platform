@@ -1,134 +1,77 @@
-
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Bell, Menu } from "lucide-react";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { useToast } from "@/hooks/use-toast";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { User } from "lucide-react";
+import { useUser } from "@/contexts/UserContext";
+import UserSettings from "@/components/UserSettings";
 
 const Navbar = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const [isOpen, setIsOpen] = useState(false);
+  const { currentUser } = useUser();
+  const [currentLetterIndex, setCurrentLetterIndex] = useState(0);
+  
+  const brandName = "Plural";
 
-  const handleLogout = () => {
-    // Simulate logout - replace with actual logout logic
-    toast({
-      title: "Logged out",
-      description: "You've been successfully logged out.",
-    });
-    navigate("/");
+  // Typewriter animation effect
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentLetterIndex(prev => (prev + 1) % brandName.length);
+    }, 2000); // Change every 2 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const renderAnimatedBrand = () => {
+    return (
+      <span className="font-bold text-2xl">
+        {brandName.split('').map((char, index) => (
+          <span
+            key={index}
+            className={`inline-block transition-all duration-500 ${
+              index === currentLetterIndex 
+                ? 'text-blue-600 transform scale-110 animate-pulse' 
+                : 'text-gray-800'
+            }`}
+          >
+            {char}
+          </span>
+        ))}
+      </span>
+    );
   };
 
   return (
-    <nav className="glass-effect py-3 px-4 md:px-6 flex items-center justify-between fixed top-0 left-0 right-0 z-10">
-      <div className="flex items-center">
-        <img 
-          src="/lovable-uploads/fac73e9b-f8bb-4b05-b7dd-b332a47a8dc8.png" 
-          alt="Plural Logo" 
-          className="h-10 cursor-pointer"
-          onClick={() => navigate("/dashboard")}
-        />
+    <nav className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between fixed top-0 left-0 right-0 z-50 shadow-sm">
+      {/* Left side - Animated Brand */}
+      <div 
+        className="flex items-center cursor-pointer"
+        onClick={() => navigate("/dashboard")}
+      >
+        {renderAnimatedBrand()}
       </div>
 
-      {/* Desktop Nav */}
-      <div className="hidden md:flex items-center space-x-6">
-        <Button
-          variant="ghost"
-          className="hover:bg-transparent hover:text-plural-blue transition-colors"
-          onClick={() => navigate("/dashboard")}
-        >
-          Home
-        </Button>
-        <Button
-          variant="ghost"
-          className="hover:bg-transparent hover:text-plural-blue transition-colors"
-          onClick={() => navigate("/world")}
-        >
-          World
-        </Button>
-        <Button
-          variant="ghost"
-          className="hover:bg-transparent hover:text-plural-blue transition-colors"
-          onClick={() => navigate("/chat")}
-        >
-          Chat
-        </Button>
-      </div>
-
-      {/* User Profile & Notifications */}
+      {/* Right side - User Menu */}
       <div className="flex items-center space-x-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="relative hover:bg-gray-100 transition-colors"
-        >
-          <Bell size={20} className="text-gray-600" />
-          <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
-        </Button>
+        {currentUser && (
+          <div className="flex items-center space-x-2">
+            {/* Direct Settings Access - UserSettings has its own Dialog */}
+            <UserSettings />
 
-        <Avatar className="cursor-pointer h-8 w-8 hover:ring-2 hover:ring-primary transition-all">
-          <AvatarImage src="https://github.com/shadcn.png" alt="@user" />
-          <AvatarFallback>CN</AvatarFallback>
-        </Avatar>
-
-        {/* Mobile menu */}
-        <Sheet open={isOpen} onOpenChange={setIsOpen}>
-          <SheetTrigger asChild className="md:hidden">
-            <Button variant="ghost" size="icon">
-              <Menu size={20} />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="right" className="glass-effect">
-            <div className="flex flex-col space-y-4 pt-8">
-              <div className="flex justify-center mb-6">
-                <img 
-                  src="/lovable-uploads/fac73e9b-f8bb-4b05-b7dd-b332a47a8dc8.png" 
-                  alt="Plural Logo" 
-                  className="h-12"
-                />
+            {/* User Profile Display */}
+            <div className="flex items-center space-x-2 px-3 py-2 bg-gray-50 rounded-xl">
+              <Avatar className="h-8 w-8">
+                <AvatarFallback className="bg-blue-100 text-blue-600 text-sm font-medium">
+                  {currentUser.avatar || currentUser.name?.charAt(0)?.toUpperCase() || <User size={16} />}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col">
+                <span className="text-sm font-medium text-gray-700">{currentUser.name}</span>
+                <span className="text-xs text-gray-500">{currentUser.ageGroup} • {currentUser.grade}</span>
               </div>
-              <Button
-                variant="ghost"
-                className="justify-start py-6 text-lg"
-                onClick={() => {
-                  navigate("/dashboard");
-                  setIsOpen(false);
-                }}
-              >
-                Home
-              </Button>
-              <Button
-                variant="ghost"
-                className="justify-start py-6 text-lg"
-                onClick={() => {
-                  navigate("/world");
-                  setIsOpen(false);
-                }}
-              >
-                World
-              </Button>
-              <Button
-                variant="ghost"
-                className="justify-start py-6 text-lg"
-                onClick={() => {
-                  navigate("/chat");
-                  setIsOpen(false);
-                }}
-              >
-                Chat
-              </Button>
-              <Button
-                variant="destructive"
-                className="justify-start py-6 text-lg mt-4"
-                onClick={handleLogout}
-              >
-                Logout
-              </Button>
             </div>
-          </SheetContent>
-        </Sheet>
+          </div>
+        )}
       </div>
     </nav>
   );

@@ -13,14 +13,14 @@ export const ServerStatus: React.FC<ServerStatusProps> = ({ className }) => {
 
   const getStatusColor = () => {
     if (!serverStatus.healthy) return 'bg-red-500';
-    if (!serverStatus.openai || !serverStatus.anthropic) return 'bg-yellow-500';
-    return 'bg-green-500';
+    if (!serverStatus.openai || !serverStatus.anthropic) return 'bg-amber-500';
+    return 'bg-emerald-500';
   };
 
   const getStatusText = () => {
-    if (!serverStatus.healthy) return 'Server Offline';
-    if (!serverStatus.openai || !serverStatus.anthropic) return 'Partial Service';
-    return 'All Systems Good';
+    if (!serverStatus.healthy) return 'System Offline';
+    if (!serverStatus.openai || !serverStatus.anthropic) return 'Limited Services';
+    return 'All Systems Operational';
   };
 
   const getStatusIcon = () => {
@@ -32,42 +32,48 @@ export const ServerStatus: React.FC<ServerStatusProps> = ({ className }) => {
   const StatusIcon = getStatusIcon();
 
   return (
-    <div className={`flex items-center space-x-2 ${className}`}>
-      {/* Status Indicator */}
-      <div className="flex items-center space-x-2">
-        <div className={`w-3 h-3 rounded-full ${getStatusColor()} animate-pulse`}></div>
-        <StatusIcon 
-          size={16} 
-          className={`${serverStatus.healthy ? 'text-green-600' : 'text-red-600'}`}
-        />
-        <span className="text-sm font-medium">{getStatusText()}</span>
+    <div className={`flex items-center justify-between ${className}`}>
+      <div className="flex items-center space-x-4">
+        {/* Status Indicator */}
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2">
+            <div className={`w-2 h-2 rounded-full ${getStatusColor()} ${serverStatus.healthy ? 'animate-pulse' : ''}`}></div>
+            <StatusIcon 
+              size={16} 
+              className={`${serverStatus.healthy ? 'text-emerald-600' : 'text-red-600'}`}
+            />
+          </div>
+          <span className="text-sm font-medium text-gray-700">{getStatusText()}</span>
+        </div>
+
+        {/* Age Group Indicator */}
+        {ageGroup && (
+          <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200 font-medium">
+            Ages {ageGroup}
+          </Badge>
+        )}
       </div>
 
-      {/* Age Group Indicator */}
-      {ageGroup && (
-        <Badge variant="outline" className="text-xs">
-          Ages {ageGroup}
-        </Badge>
-      )}
+      <div className="flex items-center space-x-2">
+        {/* Refresh Button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={checkServerHealth}
+          className="h-8 w-8 p-0 hover:bg-gray-100 rounded-full"
+          title="Refresh server status"
+        >
+          <RefreshCw size={14} className="text-gray-500" />
+        </Button>
 
-      {/* Refresh Button */}
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={checkServerHealth}
-        className="h-8 w-8 p-0"
-        title="Refresh server status"
-      >
-        <RefreshCw size={14} />
-      </Button>
-
-      {/* Detailed Status (for debugging) */}
-      {!serverStatus.healthy && (
-        <Badge variant="destructive" className="text-xs">
-          <Wifi className="w-3 h-3 mr-1" />
-          Check Backend
-        </Badge>
-      )}
+        {/* Detailed Status (for issues) */}
+        {!serverStatus.healthy && (
+          <Badge variant="destructive" className="text-xs">
+            <Wifi className="w-3 h-3 mr-1" />
+            Check Connection
+          </Badge>
+        )}
+      </div>
     </div>
   );
 };
