@@ -8,27 +8,28 @@ import { CreativeContentAgent } from '../agents/CreativeContentAgent.js';
 import { AssessmentAgent } from '../agents/AssessmentAgent.js';
 import { ExplorationAgent } from '../agents/ExplorationAgent.js';
 import { CurriculumAgent } from '../agents/CurriculumAgent.js';
-import { QuizGenerationAgent } from '../agents/QuizGenerationAgent.js';
+import { TopicGenerationAgent } from '../agents/TopicGenerationAgentEnhanced.js';
 import { ContentSafetyManager } from '../services/ContentSafetyManager.js';
 import { MCPAgentManager } from '../mcp-agents/MCPAgentManager.js';
 import { Logger } from '../utils/Logger.js';
 
 export class AgentManager {
-  constructor(openaiClient, anthropicClient) {
+  constructor(openaiClient, anthropicClient, cacheService = null) {
     this.openai = openaiClient;
     this.anthropic = anthropicClient;
+    this.cacheService = cacheService;
     
     // Initialize safety manager
     ContentSafetyManager.init(openaiClient, anthropicClient);
     
-    // Initialize agents
+    // Initialize agents with cache service
     this.agents = {
-      socratic: new SocraticLearningAgent(openaiClient),
-      creative: new CreativeContentAgent(anthropicClient),
-      assessment: new AssessmentAgent(openaiClient),
-      exploration: new ExplorationAgent(openaiClient),
-      curriculum: new CurriculumAgent(openaiClient),
-      quiz: new QuizGenerationAgent(openaiClient)
+      socratic: new SocraticLearningAgent(openaiClient, cacheService),
+      creative: new CreativeContentAgent(anthropicClient, cacheService),
+      assessment: new AssessmentAgent(openaiClient, cacheService),
+      exploration: new ExplorationAgent(openaiClient, cacheService),
+      curriculum: new CurriculumAgent(openaiClient, cacheService),
+      topicGeneration: new TopicGenerationAgent(openaiClient, { cacheService })
     };
 
     // Initialize MCP file processing agents
@@ -39,19 +40,23 @@ export class AgentManager {
       requestCount: 0,
       agentUsage: {},
       averageResponseTime: 0,
-      errorRate: 0
+      errorRate: 0,
+      cacheHits: 0,
+      cacheMisses: 0,
+      rateLimitHits: 0
     };
 
     Logger.info('AgentManager initialized', {
       component: 'AgentManager',
       agentsCount: Object.keys(this.agents).length,
       hasOpenAI: !!openaiClient,
-      hasAnthropic: !!anthropicClient
+      hasAnthropic: !!anthropicClient,
+      hasCacheService: !!cacheService
     });
   }
 
   /**
-   * Route unified chat requests to appropriate agents
+   * Route unified chat requests to appropriate agents with caching and rate limiting
    */
   async handleChatRequest(request) {
     const startTime = Date.now();
@@ -69,6 +74,32 @@ export class AgentManager {
 
       // Validate required fields
       this.validateChatRequest(request);
+
+      // Check rate limits if cache service is available
+      if (this.cacheService) {
+        const rateLimitKey = `${mode}_${ageGroup}_${Date.now().toString().slice(0, -3)}`; // Group by second
+        if (!this.cacheService.checkRateLimit('agent_requests', rateLimitKey, 10, 60000)) { // 10 requests per minute
+          this.metrics.rateLimitHits++;
+          throw new Error('Rate limit exceeded. Please slow down your requests.');
+        }
+      }
+
+      // Try to get cached response first
+      let cachedResponse = null;
+      if (this.cacheService && context.length === 0) { // Only cache initial requests
+        const cacheKey = { message, mode, ageGroup, subject, socraticMode, duration };
+        cachedResponse = this.cacheService.get('agent_response', cacheKey);
+        if (cachedResponse) {
+          this.metrics.cacheHits++;
+          Logger.info('Serving cached agent response', { mode, ageGroup });
+          return {
+            ...cachedResponse.data,
+            cached: true,
+            cacheTimestamp: cachedResponse.timestamp
+          };
+        }
+        this.metrics.cacheMisses++;
+      }
       
       let response;
       let agent;
@@ -104,12 +135,32 @@ export class AgentManager {
           
         case 'create':
           agent = 'creative';
-          response = await this.agents.creative.generateStory(
-            message, 
-            ageGroup, 
-            duration || 'short',
-            context
-          );
+          
+          // Enhanced CREATE mode with comprehensive creative format support
+          const creativeFormat = creativeFormat || 'story';
+          const creativeContext = {
+            duration: duration || 'short',
+            style: style || 'fun',
+            conversationHistory: context
+          };
+
+          // Route to the new comprehensive creative content generation
+          if (this.agents.creative.generateCreativeContent) {
+            response = await this.agents.creative.generateCreativeContent(
+              creativeFormat,
+              message,
+              ageGroup,
+              creativeContext
+            );
+          } else {
+            // Fallback to original story generation
+            response = await this.agents.creative.generateStory(
+              message, 
+              ageGroup, 
+              duration || 'short',
+              context
+            );
+          }
           break;
           
         case 'feedback':
@@ -188,7 +239,7 @@ export class AgentManager {
         duration: Date.now() - startTime
       });
 
-      return {
+      const responseData = {
         success: true,
         response,
         mode,
@@ -196,10 +247,19 @@ export class AgentManager {
         agent,
         contextLength: context.length,
         timestamp: new Date().toISOString(),
+        cached: false,
         ...(subject && { subject }),
         ...(socraticMode && { socraticMode }),
         ...(duration && { duration })
       };
+
+      // Cache the response if this was an initial request (no context)
+      if (this.cacheService && context.length === 0) {
+        const cacheKey = { message, mode, ageGroup, subject, socraticMode, duration };
+        this.cacheService.set('agent_response', cacheKey, responseData);
+      }
+
+      return responseData;
       
     } catch (error) {
       this.updateMetrics('unknown', startTime, false);
@@ -491,6 +551,91 @@ export class AgentManager {
   }
 
   /**
+   * Generate personalized topics for a user
+   * @param {Object} userProfile - User profile information
+   * @param {Object} preferences - User learning preferences
+   * @param {Object} options - Additional options for topic generation
+   * @returns {Object} Generated topics
+   */
+  async generateTopics(userProfile, preferences = {}, options = {}) {
+    const startTime = Date.now();
+    
+    try {
+      Logger.info('Generating topics', {
+        component: 'AgentManager',
+        userAge: userProfile?.age,
+        interests: preferences?.interests?.length || 0,
+        options
+      });
+
+      // Check cache first
+      const cacheKey = this.cacheService?.generateKey('topics', {
+        userProfile: {
+          age: userProfile?.age,
+          learningStyle: userProfile?.learningStyle,
+          interests: userProfile?.interests
+        },
+        preferences,
+        options
+      });
+
+      if (this.cacheService && cacheKey) {
+        const cached = await this.cacheService.get(cacheKey);
+        if (cached) {
+          this.metrics.cacheHits++;
+          Logger.info('Topics retrieved from cache', {
+            component: 'AgentManager',
+            cacheKey: cacheKey.substring(0, 20) + '...'
+          });
+          return cached;
+        }
+        this.metrics.cacheMisses++;
+      }
+
+      // Generate new topics using TopicGenerationAgent
+      const topicAgent = this.agents.topicGeneration;
+      if (!topicAgent) {
+        throw new Error('TopicGenerationAgent not available');
+      }
+
+      const result = await topicAgent.generatePersonalized({
+        userProfile,
+        preferences,
+        ...options
+      });
+      
+      // Cache the result
+      if (this.cacheService && cacheKey) {
+        await this.cacheService.set(cacheKey, result, 1800); // 30 minutes TTL
+      }
+
+      // Track metrics
+      const duration = Date.now() - startTime;
+      this.updateMetrics('topic-generation', duration, false);
+      
+      Logger.info('Topic generation completed', {
+        component: 'AgentManager',
+        duration,
+        topicsGenerated: result?.topics?.length || 0
+      });
+
+      return result;
+
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      this.updateMetrics('topic-generation', duration, true);
+      
+      Logger.error('Topic generation failed', {
+        component: 'AgentManager',
+        error: error.message,
+        duration
+      });
+      
+      throw error;
+    }
+  }
+
+  /**
    * Get supported file types for MCP processing
    * @returns {Object} Supported file types
    */
@@ -529,6 +674,9 @@ export class AgentManager {
       'explorationAgent': this.agents.exploration,
       'curriculum': this.agents.curriculum,
       'curriculumAgent': this.agents.curriculum,
+      'topicgeneration': this.agents.topicGeneration,
+      'topicgenerationagent': this.agents.topicGeneration,
+      'topics': this.agents.topicGeneration,
       'quiz': this.agents.quiz,
       'quizgeneration': this.agents.quiz
     };
@@ -547,5 +695,51 @@ export class AgentManager {
       '14-17': '9th-12th'
     };
     return mapping[ageGroup] || '5th-8th';
+  }
+
+  /**
+   * Get enhanced metrics including cache performance
+   */
+  getEnhancedMetrics() {
+    const baseMetrics = this.getMetrics();
+    const cacheStats = this.cacheService ? this.cacheService.getStats() : null;
+    
+    return {
+      ...baseMetrics,
+      cache: cacheStats ? {
+        hitRate: cacheStats.content.hitRate,
+        totalHits: this.metrics.cacheHits,
+        totalMisses: this.metrics.cacheMisses,
+        rateLimitHits: this.metrics.rateLimitHits,
+        keys: cacheStats.content.keys
+      } : null,
+      performance: {
+        requestsPerMinute: this.metrics.requestCount / (Date.now() / 60000),
+        averageResponseTime: this.metrics.averageResponseTime,
+        errorRate: this.metrics.errorRate,
+        cacheEfficiency: this.metrics.cacheHits / (this.metrics.cacheHits + this.metrics.cacheMisses) || 0
+      }
+    };
+  }
+
+  /**
+   * Check if OpenAI rate limits are being approached
+   */
+  async checkOpenAIRateLimit() {
+    if (!this.cacheService) return { healthy: true, message: 'No cache service available' };
+    
+    const openaiCalls = this.cacheService.rateLimitCache.keys().filter(key => 
+      key.includes('openai') || key.includes('agent_requests')
+    ).length;
+    
+    const threshold = 80; // 80% of typical rate limit
+    const isHealthy = openaiCalls < threshold;
+    
+    return {
+      healthy: isHealthy,
+      currentCalls: openaiCalls,
+      threshold,
+      message: isHealthy ? 'Rate limits healthy' : 'Approaching rate limits'
+    };
   }
 }

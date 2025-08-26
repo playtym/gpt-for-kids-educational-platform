@@ -71,27 +71,131 @@ Create content that matches their cognitive development stage. Always respond wi
    */
   async startLearningJourney(threadId, topic, ageGroup, openaiClient) {
     try {
-      const learningPath = await this.generateLearningPath(topic, ageGroup, openaiClient);
+      // Create a quick first step immediately without generating the full path
+      const quickFirstStep = this.generateQuickFirstStep(topic, ageGroup);
       
       const journey = {
-        ...learningPath,
         threadId,
+        topic,
+        ageGroup,
+        title: quickFirstStep.title,
+        steps: [quickFirstStep], // Start with just the first step
         currentStep: 0,
         startedAt: new Date(),
-        status: 'active', // active, completed, abandoned
+        status: 'active',
         studentResponses: [],
-        nudgeCount: 0
+        nudgeCount: 0,
+        fullPathGenerated: false, // Flag to track if full path is ready
+        openaiClient // Store client for later use
       };
 
       this.activePaths.set(threadId, journey);
       
-      Logger.info('Learning journey started', { threadId, topic, stepsCount: learningPath.steps.length });
+      // Generate the full learning path in the background (non-blocking)
+      this.generateFullPathInBackground(threadId, topic, ageGroup, openaiClient)
+        .catch(error => {
+          Logger.error('Background path generation failed:', error);
+          // Fallback: journey continues with on-demand step generation
+        });
+      
+      Logger.info('Learning journey started with quick first step', { 
+        threadId, 
+        topic, 
+        quickStart: true 
+      });
       
       return journey;
 
     } catch (error) {
       Logger.error('Error starting learning journey:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Generate a quick first step immediately without full path generation
+   */
+  generateQuickFirstStep(topic, ageGroup) {
+    const ageConfig = this.getDetailedAgeConfig(ageGroup);
+    
+    // Pre-defined engaging starter questions by age group
+    const starterTemplates = {
+      '5-7': {
+        questions: [
+          `What do you already know about this topic?`,
+          `Have you ever seen this before? Where?`,
+          `What makes you curious about this?`
+        ],
+        content: `Let's explore this topic together! We'll discover amazing things step by step.`
+      },
+      '8-10': {
+        questions: [
+          `What comes to mind when you think about this topic?`,
+          `Can you think of any examples of this in your daily life?`,
+          `What would you like to discover about this topic?`
+        ],
+        content: `Welcome to our learning adventure! We'll explore this topic through interesting questions and discoveries.`
+      },
+      '11-13': {
+        questions: [
+          `What do you think you already know about this topic?`,
+          `What questions do you have about this topic?`,
+          `How do you think this topic might connect to other things you've learned?`
+        ],
+        content: `Let's begin our exploration. We'll build understanding through guided discovery and critical thinking.`
+      },
+      '14-17': {
+        questions: [
+          `What assumptions might you have about this topic?`,
+          `How do you think this topic relates to real-world applications?`,
+          `What would you hypothesize about this topic based on your current knowledge?`
+        ],
+        content: `We're starting a structured investigation. We'll examine this topic analytically and build comprehensive understanding.`
+      }
+    };
+
+    const template = starterTemplates[ageGroup] || starterTemplates['8-10'];
+    const randomQuestion = template.questions[Math.floor(Math.random() * template.questions.length)];
+    
+    return {
+      stepNumber: 1,
+      totalSteps: ageConfig.stepsCount, // Estimated total steps
+      title: `Exploring: ${topic}`,
+      content: `${template.content} Today we're exploring: "${topic}"`,
+      question: randomQuestion,
+      progress: Math.round(100 / ageConfig.stepsCount),
+      type: 'learning_path_start',
+      quickGenerated: true // Flag to indicate this was quickly generated
+    };
+  }
+
+  /**
+   * Generate the full learning path in the background (non-blocking)
+   */
+  async generateFullPathInBackground(threadId, topic, ageGroup, openaiClient) {
+    try {
+      Logger.info('Starting background full path generation', { threadId, topic });
+      
+      // Generate the full structured learning path
+      const fullLearningPath = await this.generateLearningPath(topic, ageGroup, openaiClient);
+      
+      // Update the journey with the full path
+      const journey = this.activePaths.get(threadId);
+      if (journey && journey.status === 'active') {
+        // Replace the quick first step with the properly generated first step
+        journey.steps = fullLearningPath.steps;
+        journey.title = fullLearningPath.title;
+        journey.fullPathGenerated = true;
+        
+        Logger.info('Background path generation completed', { 
+          threadId, 
+          stepsCount: fullLearningPath.steps.length 
+        });
+      }
+      
+    } catch (error) {
+      Logger.error('Background path generation failed:', error);
+      // Journey can continue with on-demand generation as fallback
     }
   }
 
@@ -212,6 +316,17 @@ Create content that matches their cognitive development stage. Always respond wi
 
     journey.currentStep++;
 
+    // Check if we need the next step but full path isn't generated yet
+    if (journey.currentStep >= journey.steps.length && !journey.fullPathGenerated) {
+      Logger.info('Generating next step on-demand', { threadId, stepNumber: journey.currentStep + 1 });
+      
+      // Generate the next step on-demand
+      const nextStep = await this.generateNextStepOnDemand(journey);
+      if (nextStep) {
+        journey.steps.push(nextStep);
+      }
+    }
+
     // Check if journey is complete
     if (journey.currentStep >= journey.steps.length) {
       journey.status = 'completed';
@@ -225,8 +340,8 @@ Create content that matches their cognitive development stage. Always respond wi
 
       return {
         type: 'completion',
-        message: journey.completionMessage,
-        practiceQuestions: journey.practiceQuestions,
+        message: journey.completionMessage || `Great job exploring ${journey.topic}! You've completed your learning journey.`,
+        practiceQuestions: journey.practiceQuestions || [],
         summary: this.generateJourneySummary(journey),
         nextTopics: await this.generateNextTopicSuggestions(journey.topic, journey.ageGroup)
       };
@@ -237,6 +352,62 @@ Create content that matches their cognitive development stage. Always respond wi
       type: 'next_step',
       ...this.getCurrentStepContent(threadId)
     };
+  }
+
+  /**
+   * Generate the next step on-demand when full path isn't ready
+   */
+  async generateNextStepOnDemand(journey) {
+    try {
+      const ageConfig = this.getDetailedAgeConfig(journey.ageGroup);
+      const stepNumber = journey.currentStep + 1;
+      
+      // Use the student's previous responses to inform the next question
+      const previousResponses = journey.studentResponses.slice(-2); // Last 2 responses
+      const conversationContext = previousResponses.map(r => `Q: ${r.question}\nA: ${r.answer}`).join('\n\n');
+      
+      const prompt = `
+Continue the Socratic learning journey about "${journey.topic}" for ${journey.ageGroup} year olds.
+
+Previous conversation:
+${conversationContext}
+
+Generate the next step (step ${stepNumber}) that:
+- Builds on previous responses
+- Uses ${ageConfig.vocabulary} vocabulary
+- Asks engaging questions appropriate for ${journey.ageGroup} year olds
+- Follows Socratic method principles
+
+Respond with JSON format:
+{
+  "content": "Brief engaging explanation",
+  "question": "Thought-provoking question that builds on previous responses"
+}`;
+
+      const response = await journey.openaiClient.chat.completions.create({
+        model: 'gpt-4',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 300,
+        temperature: 0.7
+      });
+
+      const stepData = JSON.parse(response.choices[0].message.content);
+      
+      return {
+        stepNumber: stepNumber,
+        totalSteps: ageConfig.stepsCount,
+        title: `Step ${stepNumber}`,
+        content: stepData.content,
+        question: stepData.question,
+        progress: Math.round((stepNumber / ageConfig.stepsCount) * 100),
+        type: 'learning_path_continue',
+        onDemandGenerated: true
+      };
+      
+    } catch (error) {
+      Logger.error('On-demand step generation failed:', error);
+      return null;
+    }
   }
 
   /**

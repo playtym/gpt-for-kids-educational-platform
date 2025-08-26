@@ -10,8 +10,8 @@ import OpenAI from 'openai';
 export class SocraticLearningAgent extends BaseAgent {
   constructor(openaiClient, config = {}) {
     super('SocraticLearningAgent', {
-      maxTokens: 1000,
-      temperature: 0.7,
+      maxTokens: 1000, // Increased back for longer, more detailed responses
+      temperature: 0.6,
       ...config
     });
     this.openai = openaiClient;

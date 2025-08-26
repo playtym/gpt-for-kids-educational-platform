@@ -1,0 +1,75 @@
+{
+  "name": "@gpt-for-kids/workspace",
+  "version": "1.0.0",
+  "description": "Safe, educational AI platform for children with integrated frontend and backend",
+  "main": "index.js",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run backend:dev\" \"npm run frontend:dev\"",
+    "build": "npm run frontend:build",
+    "build:frontend": "cd frontend && npm install && npm run build",
+    "test": "npm run backend:test && npm run frontend:test",
+    "lint": "npm run backend:lint && npm run frontend:lint",
+    "format": "prettier --write \"**/*.{js,ts,tsx,json,md}\"",
+    "clean": "npm run backend:clean && npm run frontend:clean",
+    
+    "frontend:dev": "cd frontend && npm run dev",
+    "frontend:build": "cd frontend && npm run build",
+    "frontend:test": "cd frontend && npm run test",
+    "frontend:lint": "cd frontend && npm run lint",
+    "frontend:clean": "cd frontend && rm -rf dist node_modules/.cache",
+    
+    "backend:dev": "cd backend && npm run dev",
+    "backend:build": "cd backend && npm run build",
+    "backend:test": "cd backend && npm run test",
+    "backend:lint": "cd backend && npm run lint",
+    "backend:clean": "cd backend && rm -rf dist logs/*.log",
+    
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up",
+    "docker:down": "docker-compose down",
+    
+    "safety:check": "node scripts/safety-check.js",
+    "deploy:staging": "node scripts/deploy-staging.js",
+    "deploy:production": "node scripts/deploy-production.js",
+    "vercel:build": "npm run build:frontend"
+  },
+  "keywords": [
+    "education",
+    "ai",
+    "children",
+    "safety",
+    "learning",
+    "socratic-method",
+    "age-appropriate"
+  ],
+  "author": "GPT for Kids Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.5.0",
+    "concurrently": "^8.2.0",
+    "prettier": "^3.0.0",
+    "eslint": "^8.45.0",
+    "typescript": "^5.1.6"
+  },
+  "dependencies": {
+    "openai": "^4.87.3",
+    "@anthropic-ai/sdk": "^0.20.9"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-org/gpt-for-kids.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-org/gpt-for-kids/issues"
+  },
+  "homepage": "https://github.com/your-org/gpt-for-kids#readme"
+}

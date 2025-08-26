@@ -71,6 +71,8 @@ export class MCPServer {
     // AI clients (will be set externally)
     this.openaiClient = null;
     this.anthropicClient = null;
+    this.agentManager = null;
+    this.cacheService = null;
 
     // Metrics and monitoring
     this.metrics = {
@@ -257,6 +259,7 @@ export class MCPServer {
   setOpenAIClient(client) {
     this.openaiClient = client;
     Logger.info('OpenAI client set for MCP server');
+    this.tryInitializeAgents();
   }
 
   /**
@@ -265,6 +268,21 @@ export class MCPServer {
   setAnthropicClient(client) {
     this.anthropicClient = client;
     Logger.info('Anthropic client set for MCP server');
+    this.tryInitializeAgents();
+  }
+
+  /**
+   * Initialize agents when both AI clients are available
+   */
+  async tryInitializeAgents() {
+    if (this.agentOrchestrator && this.openaiClient && this.anthropicClient && !this.agentOrchestrator.agentsInitialized) {
+      try {
+        await this.agentOrchestrator.initializeAgentsWhenReady();
+        Logger.info('Agents initialized successfully after AI clients became available');
+      } catch (error) {
+        Logger.error('Failed to initialize agents after AI clients were set:', error);
+      }
+    }
   }
 
   /**
@@ -273,6 +291,14 @@ export class MCPServer {
   setAgentManager(agentManager) {
     this.agentManager = agentManager;
     Logger.info('Agent Manager set for MCP server');
+  }
+
+  /**
+   * Set Cache Service for performance optimization
+   */
+  setCacheService(cacheService) {
+    this.cacheService = cacheService;
+    Logger.info('Cache Service set for MCP server');
   }
 
   /**
@@ -349,7 +375,20 @@ export class MCPServer {
         required: ['topic', 'ageGroup', 'contentType']
       },
       handler: async (args) => {
-        return await this.agentOrchestrator.generateEducationalContent(args);
+        // Temporarily use AgentManager directly for EXPLORE mode to avoid ServiceFactory issues
+        if (!this.agentManager) {
+          throw new Error('Agent Manager not available');
+        }
+        
+        // Use the ExplorationAgent directly via AgentManager
+        const response = await this.agentManager.handleChatRequest({
+          message: args.topic,
+          mode: 'explore',
+          ageGroup: args.ageGroup,
+          context: args.context || []
+        });
+        
+        return response;
       }
     });
 

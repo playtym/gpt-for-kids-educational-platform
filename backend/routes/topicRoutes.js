@@ -1,19 +1,18 @@
 /**
  * Topic Generation API Routes
- * Handles dynamic topic generation using LLM agents
+ * Handles dynamic topic generation using existing agent infrastructure
  */
 
 import express from 'express';
-import { TopicGenerationAgent } from '../agents/TopicGenerationAgent.js';
 import { Logger } from '../utils/Logger.js';
 
 const router = express.Router();
 
-// Initialize the topic generation agent (will be passed from main server)
-let topicAgent;
+// Agent manager will be passed from main server
+let agentManager;
 
-export function initializeTopicRoutes(openaiClient) {
-  topicAgent = new TopicGenerationAgent(openaiClient);
+export function initializeTopicRoutes(agentManagerInstance) {
+  agentManager = agentManagerInstance;
   return router;
 }
 
@@ -44,23 +43,22 @@ router.post('/generate', async (req, res) => {
     const userPreferences = userContext?.preferences || {};
     const currentSession = userContext?.currentSession || {};
 
-    // Generate topics for each requested mode
+    // Generate topics for each requested mode using the exploration agent
     const generatedTopics = {};
     
     for (const mode of modes) {
       try {
-        const result = await topicAgent.generateTopics({
-          subject,
+        // Use the exploration agent for topic generation
+        const result = await agentManager.handleChatRequest({
+          message: `Generate ${topicsPerMode} topic suggestions for ${subject}`,
+          mode: 'explore',
           ageGroup,
-          mode,
-          userHistory,
-          userPreferences,
-          currentContext: currentSession,
-          requestedCount: topicsPerMode
+          context: userHistory.slice(-3) // Use last 3 interactions as context
         });
 
-        if (result.success) {
-          generatedTopics[mode] = result.topics;
+        if (result.success && result.response) {
+          // Extract topics from the response
+          generatedTopics[mode] = extractTopicsFromResponse(result.response, topicsPerMode);
         } else {
           Logger.warn(`Failed to generate topics for mode ${mode}`, { error: result.error });
           generatedTopics[mode] = [];
@@ -177,29 +175,25 @@ router.post('/suggest', async (req, res) => {
       });
     }
 
-    // Generate contextual suggestions
-    const suggestions = await topicAgent.generateTopics({
-      subject,
+    // Generate contextual suggestions using exploration agent
+    const suggestions = await agentManager.handleChatRequest({
+      message: `Suggest ${count} follow-up topics related to: ${currentTopic}`,
+      mode: 'explore',
       ageGroup,
-      mode: 'explore', // Use explore mode for suggestions
-      userHistory: userContext?.history || [],
-      userPreferences: userContext?.preferences || {},
-      currentContext: {
-        ...userContext?.currentSession,
-        currentTopic,
-        requestType: 'suggestions'
-      },
-      requestedCount: count
+      context: userContext?.history?.slice(-2) || [] // Use recent history as context
     });
+
+    const extractedSuggestions = suggestions.success ? 
+      extractTopicsFromResponse(suggestions.response, count) : [];
 
     res.json({
       success: true,
-      suggestions: suggestions.success ? suggestions.topics : [],
+      suggestions: extractedSuggestions,
       metadata: {
         basedOn: currentTopic,
         subject,
         ageGroup,
-        count: suggestions.success ? suggestions.topics.length : 0
+        count: extractedSuggestions.length
       }
     });
 
@@ -214,40 +208,71 @@ router.post('/suggest', async (req, res) => {
 });
 
 /**
+ * Extract topic suggestions from agent response
+ */
+function extractTopicsFromResponse(response, requestedCount) {
+  try {
+    // If the response has structured topics, use them
+    if (response.topics && Array.isArray(response.topics)) {
+      return response.topics.slice(0, requestedCount);
+    }
+
+    // If response has suggestions, use them
+    if (response.suggestions && Array.isArray(response.suggestions)) {
+      return response.suggestions.slice(0, requestedCount).map((suggestion, index) => ({
+        id: `topic_${Date.now()}_${index}`,
+        title: suggestion.title || suggestion,
+        description: suggestion.description || `Explore ${suggestion.title || suggestion}`,
+        category: 'generated'
+      }));
+    }
+
+    // Try to extract topics from text response
+    if (typeof response === 'string') {
+      const lines = response.split('\n').filter(line => line.trim());
+      return lines.slice(0, requestedCount).map((line, index) => ({
+        id: `topic_${Date.now()}_${index}`,
+        title: line.replace(/^\d+\.?\s*/, '').trim(),
+        description: `Learn about ${line.replace(/^\d+\.?\s*/, '').trim()}`,
+        category: 'generated'
+      }));
+    }
+
+    return [];
+  } catch (error) {
+    Logger.error('Error extracting topics from response', { error: error.message });
+    return [];
+  }
+}
+
+/**
  * Generate enhancement for a specific topic
  */
 async function generateTopicEnhancement(topic, subject, ageGroup, userContext) {
   try {
-    // Build a focused prompt for topic enhancement
-    const prompt = `Enhance this educational topic for a ${ageGroup} year old learning ${subject}:
+    if (!agentManager) {
+      Logger.warn('Agent manager not available for topic enhancement');
+      return {};
+    }
 
-CURRENT TOPIC:
-Title: ${topic.title}
-Description: ${topic.description}
-Category: ${topic.category}
+    // Use the exploration agent to enhance the topic
+    const enhancement = await agentManager.handleChatRequest({
+      message: `Enhance this topic for learning: ${topic.title} - ${topic.description}`,
+      mode: 'explore',
+      ageGroup,
+      context: userContext?.history?.slice(-1) || []
+    });
 
-USER CONTEXT:
-${userContext?.preferences ? `Preferences: ${JSON.stringify(userContext.preferences)}` : ''}
-${userContext?.history ? `Recent topics: ${userContext.history.slice(-3).map(h => h.topic || h.message).join(', ')}` : ''}
+    if (enhancement.success && enhancement.response) {
+      return {
+        personalizedDescription: `Enhanced: ${topic.description}`,
+        adaptiveHints: enhancement.response.suggestions || [`Try exploring ${topic.title} further`],
+        nextSteps: enhancement.response.followUpQuestions || [`Learn more about ${topic.category}`, "Share what you discovered"],
+        personalizedAspects: [`Matches your learning level for ${ageGroup}`]
+      };
+    }
 
-Provide enhancements in this JSON format:
-{
-  "personalizedDescription": "A description tailored to this user's interests",
-  "adaptiveHints": ["hint1", "hint2"],
-  "nextSteps": ["step1", "step2"],
-  "personalizedAspects": ["why this matches the user"]
-}
-
-Keep it brief and relevant.`;
-
-    // This would call the LLM - for now return basic enhancement
-    return {
-      personalizedDescription: `Personalized: ${topic.description}`,
-      adaptiveHints: [`Try connecting this to your interests in ${userContext?.preferences?.interests?.[0] || 'learning'}`],
-      nextSteps: [`Explore more about ${topic.category}`, "Share what you discovered"],
-      personalizedAspects: [`Matches your learning style`]
-    };
-
+    return {};
   } catch (error) {
     Logger.error('Topic enhancement generation failed', { error: error.message });
     return {};

@@ -48,10 +48,30 @@ export class MCPAgentOrchestrator {
     try {
       Logger.info('Initializing agent orchestrator...');
 
-      // Initialize service factory for AI clients
-      this.serviceFactory = new ServiceFactory();
-      await this.serviceFactory.initialize();
+      // Skip ServiceFactory initialization as agents are now managed directly
+      // ServiceFactory is only for core services, not agents
+      this.serviceFactory = null;
 
+      // Note: Defer agent initialization until AI clients are set
+      this.agentsInitialized = false;
+      
+      Logger.info('Agent orchestrator base initialization complete (agents deferred)');
+
+    } catch (error) {
+      Logger.error('Failed to initialize agent orchestrator:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Initialize agents after AI clients are available
+   */
+  async initializeAgentsWhenReady() {
+    if (this.agentsInitialized) {
+      return;
+    }
+
+    try {
       // Initialize all educational agents
       await this.initializeAgents();
       
@@ -61,14 +81,16 @@ export class MCPAgentOrchestrator {
       // Register educational prompts
       await this.registerEducationalPrompts();
       
-      Logger.info('Agent orchestrator initialization complete', {
+      this.agentsInitialized = true;
+      
+      Logger.info('Agent orchestrator full initialization complete', {
         agentCount: this.agents.size,
         totalCapabilities: Array.from(this.agentCapabilities.values())
           .reduce((sum, caps) => sum + caps.size, 0)
       });
 
     } catch (error) {
-      Logger.error('Failed to initialize agent orchestrator:', error);
+      Logger.error('Failed to initialize agents:', error);
       throw error;
     }
   }
@@ -78,9 +100,16 @@ export class MCPAgentOrchestrator {
    */
   async initializeAgents() {
     try {
-      // Get AI clients from service factory
-      const openaiClient = this.serviceFactory.getService('openaiClient');
-      const anthropicClient = this.serviceFactory.getService('anthropicClient');
+      // Get AI clients directly from MCP server
+      const openaiClient = this.mcpServer.openaiClient;
+      const anthropicClient = this.mcpServer.anthropicClient;
+
+      if (!openaiClient) {
+        throw new Error('OpenAI client not available for agent initialization');
+      }
+      if (!anthropicClient) {
+        throw new Error('Anthropic client not available for agent initialization');
+      }
 
       // Initialize enhanced agents
       const agentConfigs = [
@@ -195,6 +224,7 @@ export class MCPAgentOrchestrator {
           capabilities.add('generateStory');
           capabilities.add('createContent');
           capabilities.add('writingPrompts');
+          capabilities.add('provideFeedback');
           break;
         case 'CurriculumAgent':
           capabilities.add('curriculumContent');
@@ -445,6 +475,16 @@ export class MCPAgentOrchestrator {
         );
 
       case 'provideFeedback':
+        // Handle creative feedback specially for CreativeContentAgent
+        if (agent.name === 'CreativeContentAgent') {
+          console.log('DEBUG: input object for CreativeContentAgent:', JSON.stringify(input, null, 2));
+          return await agent.provideFeedback(
+            input.studentWork,
+            input.ageGroup,
+            null // medium will be auto-detected
+          );
+        }
+        // Default behavior for AssessmentAgent
         return await agent.provideFeedback(
           input.studentWork,
           input.type,
@@ -542,6 +582,10 @@ export class MCPAgentOrchestrator {
   }
 
   async provideFeedback(args) {
+    // Route creative feedback to CreativeContentAgent, others to AssessmentAgent
+    if (args.type === 'creative') {
+      return await this.executeAgentCapability('CreativeContentAgent', 'provideFeedback', args);
+    }
     return await this.executeAgentCapability('AssessmentAgent', 'provideFeedback', args);
   }
 

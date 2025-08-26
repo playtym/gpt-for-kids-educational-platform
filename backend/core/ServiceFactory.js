@@ -7,16 +7,7 @@
 import { Logger } from '../utils/Logger.js';
 import { ContentSafetyManager } from '../services/ContentSafetyManager.js';
 
-// Import all agents
-import { SocraticLearningAgent } from '../agents/SocraticLearningAgent.js';
-import { CreativeContentAgent } from '../agents/CreativeContentAgent.js';
-import { AssessmentAgent } from '../agents/AssessmentAgent.js';
-import { ExplorationAgent } from '../agents/ExplorationAgent.js';
-import { CurriculumAgent } from '../agents/CurriculumAgent.js';
-import { QuizGenerationAgent } from '../agents/QuizGenerationAgent.js';
-import { TopicGenerationAgent } from '../agents/TopicGenerationAgent.js';
-
-// Import services
+// Import services (agents are now managed by MCP Agent Orchestrator)
 import { ValidationService } from '../core/ValidationService.js';
 import { MetricsService } from '../core/MetricsService.js';
 import { RouteHandlerService } from '../core/RouteHandlerService.js';
@@ -45,93 +36,17 @@ const SERVICE_REGISTRY = {
     class: ContentSafetyManager,
     singleton: true,
     dependencies: []
-  },
-
-  // Agent services
-  socraticAgent: {
-    class: SocraticLearningAgent,
-    singleton: false,
-    dependencies: ['openaiClient'],
-    config: { type: 'educational', subject: 'general' }
-  },
-  creativeAgent: {
-    class: CreativeContentAgent,
-    singleton: false,
-    dependencies: ['anthropicClient'],
-    config: { type: 'creative', genre: 'educational' }
-  },
-  assessmentAgent: {
-    class: AssessmentAgent,
-    singleton: false,
-    dependencies: ['openaiClient'],
-    config: { type: 'assessment', mode: 'feedback' }
-  },
-  explorationAgent: {
-    class: ExplorationAgent,
-    singleton: false,
-    dependencies: ['openaiClient'],
-    config: { type: 'exploration', searchEnabled: true }
-  },
-  curriculumAgent: {
-    class: CurriculumAgent,
-    singleton: false,
-    dependencies: ['openaiClient'],
-    config: { type: 'curriculum', board: 'flexible' }
-  },
-  quizAgent: {
-    class: QuizGenerationAgent,
-    singleton: false,
-    dependencies: ['openaiClient'],
-    config: { type: 'quiz', searchEnabled: true }
-  },
-  topicAgent: {
-    class: TopicGenerationAgent,
-    singleton: false,
-    dependencies: ['openaiClient'],
-    config: { type: 'topics', personalized: true }
   }
+
+  // Note: Agent services are now managed by MCP Agent Orchestrator
+  // All educational agents (socratic, creative, assessment, exploration, curriculum)
+  // are handled through the unified MCP architecture
 };
 
 /**
- * Agent capability mapping for dynamic routing
+ * Note: Agent capabilities are now managed by MCP Agent Orchestrator
+ * See MCPAgentOrchestrator.js for agent capability mapping
  */
-const AGENT_CAPABILITIES = {
-  socraticAgent: {
-    capabilities: ['learn', 'explain', 'teach', 'question'],
-    subjects: ['math', 'science', 'language', 'history', 'general'],
-    modes: ['socratic', 'answer-first', 'question-first']
-  },
-  creativeAgent: {
-    capabilities: ['create', 'story', 'creative-writing', 'imagination'],
-    subjects: ['literature', 'creative-writing', 'art', 'general'],
-    modes: ['story', 'poem', 'description', 'dialogue']
-  },
-  assessmentAgent: {
-    capabilities: ['feedback', 'evaluate', 'assess', 'grade'],
-    subjects: ['all'],
-    modes: ['feedback', 'assessment', 'grading', 'suggestions']
-  },
-  explorationAgent: {
-    capabilities: ['explore', 'discover', 'investigate', 'analyze'],
-    subjects: ['all'],
-    modes: ['exploration', 'discovery', 'investigation', 'visual-analysis']
-  },
-  curriculumAgent: {
-    capabilities: ['curriculum', 'syllabus', 'lesson-plan', 'structured-learning'],
-    subjects: ['all'],
-    modes: ['lesson', 'curriculum', 'syllabus', 'structured']
-  },
-  quizAgent: {
-    capabilities: ['quiz', 'test', 'questions', 'mcq'],
-    subjects: ['all'],
-    modes: ['quiz', 'test', 'practice', 'assessment']
-  },
-  topicAgent: {
-    capabilities: ['topics', 'suggestions', 'recommendations', 'personalization'],
-    subjects: ['all'],
-    modes: ['generate', 'enhance', 'suggest', 'personalize']
-  }
-};
 
 export class ServiceFactory {
   constructor() {
@@ -158,8 +73,8 @@ export class ServiceFactory {
       // Initialize core services first
       await this.initializeCoreServices();
 
-      // Initialize agent services
-      await this.initializeAgentServices();
+      // Note: Agent services are now managed by MCP Agent Orchestrator
+      // No longer initializing agents through ServiceFactory
 
       this.initialized = true;
       Logger.info('ServiceFactory initialization complete', { 
@@ -184,17 +99,6 @@ export class ServiceFactory {
     const coreServices = ['validation', 'metrics', 'routeHandler', 'safety'];
     
     for (const serviceName of coreServices) {
-      await this.createService(serviceName);
-    }
-  }
-
-  /**
-   * Initialize agent services
-   */
-  async initializeAgentServices() {
-    const agentServices = Object.keys(SERVICE_REGISTRY).filter(s => s.endsWith('Agent'));
-    
-    for (const serviceName of agentServices) {
       await this.createService(serviceName);
     }
   }
@@ -308,64 +212,26 @@ export class ServiceFactory {
 
   /**
    * Find agent by capability
+   * Note: Agent management moved to MCP Agent Orchestrator
    */
   findAgentByCapability(capability, subject = 'general', mode = 'default') {
-    for (const [agentName, agentInfo] of Object.entries(AGENT_CAPABILITIES)) {
-      const hasCapability = agentInfo.capabilities.includes(capability);
-      const supportsSubject = agentInfo.subjects.includes(subject) || agentInfo.subjects.includes('all');
-      const supportsMode = agentInfo.modes.includes(mode) || agentInfo.modes.includes('default');
-
-      if (hasCapability && supportsSubject && supportsMode) {
-        return this.getService(agentName);
-      }
-    }
-
-    throw new Error(`No agent found for capability: ${capability}, subject: ${subject}, mode: ${mode}`);
+    throw new Error('Agent management moved to MCP Agent Orchestrator. Use agentOrchestrator.executeAgentCapability() instead.');
   }
 
   /**
    * Get all agents with a specific capability
+   * Note: Agent management moved to MCP Agent Orchestrator
    */
   getAgentsByCapability(capability) {
-    const agents = [];
-    
-    for (const [agentName, agentInfo] of Object.entries(AGENT_CAPABILITIES)) {
-      if (agentInfo.capabilities.includes(capability)) {
-        agents.push({
-          name: agentName,
-          agent: this.getService(agentName),
-          info: agentInfo
-        });
-      }
-    }
-
-    return agents;
+    throw new Error('Agent management moved to MCP Agent Orchestrator.');
   }
 
   /**
    * Create a dynamic agent for specific use case
+   * Note: Dynamic agent creation moved to MCP Agent Orchestrator
    */
   async createDynamicAgent(agentType, config = {}) {
-    const baseAgentName = `${agentType}Agent`;
-    
-    if (!SERVICE_REGISTRY[baseAgentName]) {
-      throw new Error(`Unknown agent type: ${agentType}`);
-    }
-
-    // Create unique service name for dynamic agent
-    const dynamicServiceName = `${baseAgentName}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    // Create service with custom config
-    const agent = await this.createService(baseAgentName, config);
-    
-    // Store with dynamic name
-    this.services.set(dynamicServiceName, agent);
-    
-    return {
-      name: dynamicServiceName,
-      agent,
-      destroy: () => this.services.delete(dynamicServiceName)
-    };
+    throw new Error('Dynamic agent creation moved to MCP Agent Orchestrator. Use agentOrchestrator.createAgent() instead.');
   }
 
   /**
@@ -381,8 +247,7 @@ export class ServiceFactory {
       singletonServices: this.singletons.size,
       services,
       singletons,
-      dependencies: Array.from(this.dependencies.keys()),
-      agentCapabilities: AGENT_CAPABILITIES
+      dependencies: Array.from(this.dependencies.keys())
     };
   }
 
@@ -413,15 +278,6 @@ export class ServiceFactory {
       config: config.config || {}
     };
 
-    // Add capability mapping if it's an agent
-    if (config.capabilities) {
-      AGENT_CAPABILITIES[serviceName] = {
-        capabilities: config.capabilities,
-        subjects: config.subjects || ['general'],
-        modes: config.modes || ['default']
-      };
-    }
-
     Logger.info(`Service registered: ${serviceName}`, { 
       component: 'ServiceFactory',
       singleton: config.singleton 
@@ -437,9 +293,10 @@ export class ServiceFactory {
 
   /**
    * Get agent capabilities
+   * Note: Agent management moved to MCP Agent Orchestrator
    */
   getAgentCapabilities() {
-    return { ...AGENT_CAPABILITIES };
+    throw new Error('Agent capabilities moved to MCP Agent Orchestrator.');
   }
 }
 
