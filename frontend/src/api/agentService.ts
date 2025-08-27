@@ -304,7 +304,7 @@ export class EducationalAgentService {
    */
   async checkHealth(): Promise<HealthStatus> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/health`);
+      const response = await fetch(`${this.baseUrl}/health`);
       
       if (!response.ok) {
         return { 

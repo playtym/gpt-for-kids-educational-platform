@@ -74,7 +74,7 @@ class QuizService {
     context: string[] = [], 
     options: QuizOptions = {}
   ): Promise<QuizResponse> {
-    const response = await fetch(`${API_BASE}/api/quiz/generate`, {
+    const response = await fetch(`${API_BASE}/api/generate-quiz`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -102,7 +102,7 @@ class QuizService {
     ageGroup: string, 
     questionCount: number = 3
   ): Promise<QuizResponse> {
-    const response = await fetch(`${API_BASE}/api/quiz/quick`, {
+    const response = await fetch(`${API_BASE}/api/generate-quiz`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -130,7 +130,7 @@ class QuizService {
     context: string[] = [], 
     questionCount: number = 10
   ): Promise<QuizResponse> {
-    const response = await fetch(`${API_BASE}/api/quiz/comprehensive`, {
+    const response = await fetch(`${API_BASE}/api/generate-quiz`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

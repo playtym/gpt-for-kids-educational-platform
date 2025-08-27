@@ -804,6 +804,126 @@ class EducationalPlatformServer {
       })
     );
 
+    // Additional API endpoints for frontend compatibility
+    
+    // Metrics endpoint
+    this.app.get('/api/metrics',
+      ErrorHandler.asyncHandler(async (req, res) => {
+        const metrics = {
+          system: {
+            uptime: process.uptime(),
+            memory: process.memoryUsage(),
+            platform: process.platform,
+            version: process.version
+          },
+          services: {
+            mcp: this.mcpServer ? 'active' : 'inactive',
+            agents: this.agentManager ? 'active' : 'inactive',
+            cache: this.cacheService ? 'healthy' : 'inactive'
+          },
+          timestamp: new Date().toISOString()
+        };
+        res.json(metrics);
+      })
+    );
+
+    // Files health endpoint (for MCP health check)
+    this.app.get('/api/files/health',
+      ErrorHandler.asyncHandler(async (req, res) => {
+        const health = {
+          status: 'healthy',
+          mcp: this.mcpServer ? 'active' : 'inactive',
+          timestamp: new Date().toISOString()
+        };
+        res.json(health);
+      })
+    );
+
+    // Safety check endpoint
+    this.app.post('/api/safety-check',
+      ValidationMiddleware.validateSafetyCheck(),
+      ErrorHandler.asyncHandler(async (req, res) => {
+        const { content, ageGroup = '8-10' } = req.body;
+        
+        const safetyResult = await ContentSafetyManager.doubleCheckSafety(content, ageGroup);
+        
+        res.json({
+          safe: safetyResult.safe,
+          reason: safetyResult.reason,
+          ageGroup,
+          timestamp: new Date().toISOString()
+        });
+      })
+    );
+
+    // Feedback endpoint
+    this.app.post('/api/feedback',
+      ValidationMiddleware.validateFeedback(),
+      ErrorHandler.asyncHandler(async (req, res) => {
+        const { studentWork, type = 'general', ageGroup = '8-10' } = req.body;
+        
+        const feedback = await this.mcpServer.callTool('provide-feedback', {
+          studentWork,
+          type,
+          ageGroup
+        });
+        
+        res.json({
+          success: true,
+          feedback,
+          type,
+          ageGroup,
+          timestamp: new Date().toISOString()
+        });
+      })
+    );
+
+    // Question generation endpoint
+    this.app.post('/api/question',
+      ValidationMiddleware.validateQuestionGeneration(),
+      ErrorHandler.asyncHandler(async (req, res) => {
+        const { topic, ageGroup = '8-10', difficulty = 'medium' } = req.body;
+        
+        const question = await this.mcpServer.callTool('generate-quiz', {
+          topic,
+          ageGroup,
+          questionCount: 1,
+          difficulty
+        });
+        
+        res.json({
+          success: true,
+          question: question?.questions?.[0] || question,
+          topic,
+          ageGroup,
+          difficulty,
+          timestamp: new Date().toISOString()
+        });
+      })
+    );
+
+    // Socratic learning endpoint
+    this.app.post('/api/socratic',
+      ValidationMiddleware.validateSocraticRequest(),
+      ErrorHandler.asyncHandler(async (req, res) => {
+        const { question, ageGroup = '8-10', subject = 'general' } = req.body;
+        
+        const response = await this.mcpServer.callTool('socratic-dialogue', {
+          question,
+          ageGroup,
+          subject
+        });
+        
+        res.json({
+          success: true,
+          response,
+          ageGroup,
+          subject,
+          timestamp: new Date().toISOString()
+        });
+      })
+    );
+
     // Catch-all handler for frontend SPA routing
     this.app.get('*', (req, res) => {
       // Don't serve index.html for API routes, assets, or other special paths

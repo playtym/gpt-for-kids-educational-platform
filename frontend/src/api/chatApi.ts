@@ -24,7 +24,7 @@ export async function generateChatCompletion(messages: ChatMessage[]): Promise<C
     // For security, redirect to backend API instead of using client-side OpenAI
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || window.location.origin;
     
-    const response = await fetch(`${API_BASE_URL}/api/chat/completion`, {
+    const response = await fetch(`${API_BASE_URL}/api/generate-content`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

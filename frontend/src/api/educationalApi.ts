@@ -69,10 +69,8 @@ class EducationalApiClient {
   private baseUrl: string;
 
   constructor() {
-    // Use environment variable or default based on build mode
-    this.baseUrl = import.meta.env.PROD 
-      ? '/api' // Vercel serverless functions
-      : (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000');
+    // Use environment variable or default to localhost:3000 (backend port)
+    this.baseUrl = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:3000';
   }
 
   private async makeRequest<T>(
@@ -141,7 +139,7 @@ class EducationalApiClient {
     ageGroup: AgeGroup,
     duration: 'short' | 'medium' = 'short'
   ): Promise<ApiResponse<StoryResponse>> {
-    return this.makeRequest<StoryResponse>('/api/creative/story', {
+    return this.makeRequest<StoryResponse>('/api/create-story', {
       topic,
       ageGroup,
       duration,
