@@ -13,6 +13,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
+import { body } from 'express-validator';
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
@@ -841,7 +842,9 @@ class EducationalPlatformServer {
 
     // Safety check endpoint
     this.app.post('/api/safety-check',
-      ValidationMiddleware.validateSafetyCheck(),
+      body('content').isString().trim().isLength({ min: 1, max: 5000 }),
+      body('ageGroup').optional().isIn(['5-7', '8-10', '11-13', '14-17']),
+      ValidationMiddleware.handleValidationErrors,
       ErrorHandler.asyncHandler(async (req, res) => {
         const { content, ageGroup = '8-10' } = req.body;
         
@@ -858,7 +861,10 @@ class EducationalPlatformServer {
 
     // Feedback endpoint
     this.app.post('/api/feedback',
-      ValidationMiddleware.validateFeedback(),
+      body('studentWork').isString().trim().isLength({ min: 1, max: 5000 }),
+      body('type').optional().isIn(['general', 'creative', 'academic']),
+      body('ageGroup').optional().isIn(['5-7', '8-10', '11-13', '14-17']),
+      ValidationMiddleware.handleValidationErrors,
       ErrorHandler.asyncHandler(async (req, res) => {
         const { studentWork, type = 'general', ageGroup = '8-10' } = req.body;
         
@@ -880,7 +886,10 @@ class EducationalPlatformServer {
 
     // Question generation endpoint
     this.app.post('/api/question',
-      ValidationMiddleware.validateQuestionGeneration(),
+      body('topic').isString().trim().isLength({ min: 1, max: 200 }),
+      body('ageGroup').optional().isIn(['5-7', '8-10', '11-13', '14-17']),
+      body('difficulty').optional().isIn(['easy', 'medium', 'hard']),
+      ValidationMiddleware.handleValidationErrors,
       ErrorHandler.asyncHandler(async (req, res) => {
         const { topic, ageGroup = '8-10', difficulty = 'medium' } = req.body;
         
@@ -904,7 +913,10 @@ class EducationalPlatformServer {
 
     // Socratic learning endpoint
     this.app.post('/api/socratic',
-      ValidationMiddleware.validateSocraticRequest(),
+      body('question').isString().trim().isLength({ min: 1, max: 500 }),
+      body('ageGroup').optional().isIn(['5-7', '8-10', '11-13', '14-17']),
+      body('subject').optional().isString().trim().isLength({ max: 100 }),
+      ValidationMiddleware.handleValidationErrors,
       ErrorHandler.asyncHandler(async (req, res) => {
         const { question, ageGroup = '8-10', subject = 'general' } = req.body;
         
