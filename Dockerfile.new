@@ -1,8 +1,5 @@
-# Simplified Dockerfile for GPT for Kids Full MCP Server
+# GPT for Kids - Full MCP Server Dockerfile
 FROM node:18-alpine
-
-# Install build dependencies
-RUN apk add --no-cache python3 make g++
 
 # Set working directory
 WORKDIR /app
@@ -12,9 +9,9 @@ COPY backend/package*.json ./backend/
 COPY frontend/package*.json ./frontend/
 
 # Install backend dependencies
-RUN cd backend && npm install --only=production
+RUN cd backend && npm install --production
 
-# Install frontend dependencies for build  
+# Install frontend dependencies for build
 RUN cd frontend && npm install
 
 # Copy all source code
@@ -23,7 +20,7 @@ COPY . .
 # Build frontend
 RUN cd frontend && npm run build
 
-# Create non-root user
+# Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S gptforkids -u 1001 -G nodejs && \
     chown -R gptforkids:nodejs /app

@@ -130,9 +130,7 @@ export class EducationalAgentService {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = import.meta.env.PROD 
-      ? '/api' // Vercel serverless functions
-      : (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000');
+    this.baseUrl = import.meta.env.VITE_API_BASE_URL || window.location.origin;
   }
 
   /**

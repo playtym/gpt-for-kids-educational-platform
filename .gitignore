@@ -106,6 +106,17 @@ public
 tmp/
 temp/
 
+# Railway
+.railway/
+
+# PM2
+.pm2/
+ecosystem.config.js
+
+# MCP Server logs
+server.log
+backend/server.log
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

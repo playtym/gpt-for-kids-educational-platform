@@ -146,7 +146,7 @@ export class EducationalAgentService {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
       
-      const response = await fetch(`${this.baseUrl}/api/chat`, {
+      const response = await fetch(`${this.baseUrl}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -199,7 +199,7 @@ export class EducationalAgentService {
    */
   async generateTableOfContents(subject: string, board: string, grade: string, ageGroup: AgeGroup) {
     try {
-      const response = await fetch(`${this.baseUrl}/api/curriculum/toc`, {
+      const response = await fetch(`${this.baseUrl}/curriculum/toc`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -221,7 +221,7 @@ export class EducationalAgentService {
 
   async generateChapterSummary(subject: string, chapter: string, board: string, grade: string, ageGroup: AgeGroup) {
     try {
-      const response = await fetch(`${this.baseUrl}/api/curriculum/summary`, {
+      const response = await fetch(`${this.baseUrl}/curriculum/summary`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -243,7 +243,7 @@ export class EducationalAgentService {
 
   async generatePracticeExercises(subject: string, topic: string, board: string, grade: string, ageGroup: AgeGroup) {
     try {
-      const response = await fetch(`${this.baseUrl}/api/curriculum/practice`, {
+      const response = await fetch(`${this.baseUrl}/curriculum/practice`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -268,7 +268,7 @@ export class EducationalAgentService {
    */
   async getSystemMetrics(): Promise<SystemMetrics | null> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/metrics`);
+      const response = await fetch(`${this.baseUrl}/metrics`);
       
       if (!response.ok) {
         console.error('Failed to fetch system metrics');
@@ -287,7 +287,7 @@ export class EducationalAgentService {
    */
   async getAgentStats(agentName: string): Promise<AgentStats | null> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/agents/${agentName}/stats`);
+      const response = await fetch(`${this.baseUrl}/agents/${agentName}/stats`);
       
       if (!response.ok) {
         console.error(`Failed to fetch stats for agent: ${agentName}`);
@@ -306,7 +306,7 @@ export class EducationalAgentService {
    */
   async checkHealth(): Promise<HealthStatus> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/health`);
+      const response = await fetch(`${this.baseUrl}/health`);
       
       if (!response.ok) {
         return { 
@@ -425,7 +425,7 @@ export class EducationalAgentService {
    */
   async checkMCPHealth(): Promise<any> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/files/health`);
+      const response = await fetch(`${this.baseUrl}/files/health`);
       
       if (!response.ok) {
         throw new Error('Failed to check MCP health');
@@ -447,16 +447,16 @@ export class EducationalAgentService {
     ageGroup: AgeGroup
   ): Promise<AgentResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/chat/learning-path`, {
+      const response = await fetch(`${this.baseUrl}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          threadId,
-          topic,
-          ageGroup,
-          action: 'start'
+          message: `Start learning journey about: ${topic}`,
+          mode: 'learn',
+          ageGroup: ageGroup,
+          threadId: threadId
         })
       });
 
@@ -481,7 +481,7 @@ export class EducationalAgentService {
     ageGroup: AgeGroup
   ): Promise<AgentResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/chat/learning-path`, {
+      const response = await fetch(`${this.baseUrl}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -511,7 +511,7 @@ export class EducationalAgentService {
    */
   async continueToNextStep(threadId: string): Promise<AgentResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/chat/learning-path`, {
+      const response = await fetch(`${this.baseUrl}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -542,7 +542,7 @@ export class EducationalAgentService {
     reason: string = 'user_choice'
   ): Promise<AgentResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/chat/learning-path`, {
+      const response = await fetch(`${this.baseUrl}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -575,7 +575,7 @@ export class EducationalAgentService {
     ageGroup: AgeGroup
   ): Promise<AgentResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/chat/learning-path`, {
+      const response = await fetch(`${this.baseUrl}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -605,7 +605,7 @@ export class EducationalAgentService {
    */
   async generateLearningQuiz(threadId: string, learningContext: any[] = []): Promise<AgentResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/chat/learning-path`, {
+      const response = await fetch(`${this.baseUrl}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

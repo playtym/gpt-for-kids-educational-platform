@@ -1,0 +1,25 @@
+{
+  "name": "gpt-for-kids-mcp",
+  "version": "2.0.0",
+  "description": "Educational AI Platform with MCP Server",
+  "main": "backend/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "cd backend && npm start",
+    "dev": "cd backend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "deploy": "railway deploy"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.5.0",
+    "@anthropic-ai/sdk": "^0.20.9",
+    "express": "^4.18.2",
+    "ws": "^8.14.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "openai": "^4.87.3"
+  }
+}

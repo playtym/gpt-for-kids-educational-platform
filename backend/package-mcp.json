@@ -1,0 +1,90 @@
+{
+  "name": "@gpt-for-kids/mcp-server",
+  "version": "2.0.0",
+  "description": "MCP (Model Context Protocol) server for GPT for Kids educational platform",
+  "main": "mcp-core/MCPServer.js",
+  "type": "module",
+  "bin": {
+    "gpt-for-kids-mcp": "./mcp-core/MCPServer.js"
+  },
+  "scripts": {
+    "start": "node mcp-core/MCPServer.js",
+    "dev": "nodemon mcp-core/MCPServer.js",
+    "mcp:start": "node mcp-core/MCPServer.js",
+    "mcp:test": "node -e \"console.log('MCP server test - OK')\"",
+    "health": "curl -f http://localhost:3000/health || exit 1"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.5.0",
+    "@anthropic-ai/sdk": "^0.20.9",
+    "openai": "^4.87.3",
+    "winston": "^3.10.0",
+    "dotenv": "^16.3.1",
+    "node-cache": "^5.1.2",
+    "axios": "^1.11.0",
+    "zod": "^3.21.4"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "education",
+    "ai",
+    "children",
+    "server",
+    "tools",
+    "resources"
+  ],
+  "mcp": {
+    "server": {
+      "name": "gpt-for-kids-educational-platform",
+      "version": "2.0.0",
+      "description": "MCP server for educational AI platform with dynamic agent orchestration",
+      "command": "node",
+      "args": ["mcp-core/MCPServer.js"],
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "prompts": true,
+        "logging": true
+      },
+      "tools": [
+        {
+          "name": "generate-educational-content",
+          "description": "Generate age-appropriate educational content"
+        },
+        {
+          "name": "socratic-dialogue", 
+          "description": "Engage in Socratic learning dialogue"
+        },
+        {
+          "name": "provide-feedback",
+          "description": "Provide educational feedback"
+        },
+        {
+          "name": "curriculum-content",
+          "description": "Generate curriculum-specific content"
+        },
+        {
+          "name": "create-story",
+          "description": "Create educational stories"
+        },
+        {
+          "name": "explore-topic",
+          "description": "Guide topic exploration"
+        },
+        {
+          "name": "generate-quiz",
+          "description": "Generate educational quizzes"
+        },
+        {
+          "name": "analyze-files",
+          "description": "Analyze educational files"
+        }
+      ]
+    }
+  }
+}

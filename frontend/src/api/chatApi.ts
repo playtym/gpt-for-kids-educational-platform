@@ -1,8 +1,16 @@
 
-// API configuration for production deployment
-const API_BASE_URL = import.meta.env.PROD 
-  ? '/api' // Vercel serverless functions
-  : 'http://localhost:3000/api'; // Local development
+import { OpenAI } from 'openai';
+
+// Initialize OpenAI with a default empty string for the API key
+// DEPRECATED: Direct OpenAI usage - Using backend API instead for security
+// In a production environment, this should be handled more securely
+// through environment variables properly exposed to the client
+/*
+const openai = new OpenAI({
+  apiKey: import.meta.env.VITE_OPENAI_API_KEY || "",
+  dangerouslyAllowBrowser: true // For client-side usage
+});
+*/
 
 export interface ChatMessage {
   id: string;
@@ -11,46 +19,34 @@ export interface ChatMessage {
   createdAt?: Date;
 }
 
-export async function sendChatMessage(
-  messages: ChatMessage[],
-  systemPrompt = "You are an educational AI assistant that helps users explore and learn about various topics."
-) {
+export async function generateChatCompletion(messages: ChatMessage[]): Promise<ChatMessage> {
   try {
-    // Get the last user message
-    const lastUserMessage = messages.filter(msg => msg.role === 'user').pop();
+    // For security, redirect to backend API instead of using client-side OpenAI
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || window.location.origin;
     
-    if (!lastUserMessage) {
-      throw new Error('No user message found');
-    }
-
-    // Call our serverless API
-    const response = await fetch(`${API_BASE_URL}/chat`, {
+    const response = await fetch(`${API_BASE_URL}/api/chat/completion`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        message: lastUserMessage.content,
-        mode: 'learn',
-        ageGroup: '8-10'
+        messages: messages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        }))
       }),
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw new Error(`API error: ${response.status}`);
     }
 
     const data = await response.json();
-
-    if (!data.success) {
-      throw new Error(data.error || 'API request failed');
-    }
-
-    // Return the response in the expected format
+    
     return {
-      id: Date.now().toString(),
+      id: data.id || Date.now().toString(),
       role: 'assistant',
-      content: data.response.shortAnswer || "I'm sorry, I don't have a response for that.",
+      content: data.content || "I'm sorry, I don't have a response for that.",
       createdAt: new Date(),
     };
   } catch (error) {

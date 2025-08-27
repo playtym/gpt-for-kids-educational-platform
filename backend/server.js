@@ -116,24 +116,24 @@ class EducationalPlatformServer {
   }
 
   async initializeAIClients() {
-    // Initialize OpenAI
+    // Initialize OpenAI (optional for deployment)
     if (CONFIG.openai.apiKey) {
       this.openai = new OpenAI({
         apiKey: CONFIG.openai.apiKey
       });
       Logger.info('✅ OpenAI client initialized');
     } else {
-      Logger.warn('⚠️  OpenAI API key not provided');
+      Logger.warn('⚠️  OpenAI API key not provided - AI features will be limited');
     }
 
-    // Initialize Anthropic
+    // Initialize Anthropic (optional for deployment)
     if (CONFIG.anthropic.apiKey) {
       this.anthropic = new Anthropic({
         apiKey: CONFIG.anthropic.apiKey
       });
       Logger.info('✅ Anthropic client initialized');
     } else {
-      Logger.warn('⚠️  Anthropic API key not provided');
+      Logger.warn('⚠️  Anthropic API key not provided - AI features will be limited');
     }
   }
 
@@ -146,94 +146,71 @@ class EducationalPlatformServer {
       maxKeys: 1000
     });
 
-    // Initialize Content Safety Manager (static class)
-    ContentSafetyManager.init(this.openai, this.anthropic);
+    // Initialize Content Safety Manager (only if we have AI clients)
+    if (this.openai || this.anthropic) {
+      ContentSafetyManager.init(this.openai, this.anthropic);
+      Logger.info('✅ Content Safety Manager initialized');
+    }
     
-    // Initialize Agent Manager with AI clients and cache service
-    this.agentManager = new AgentManager(this.openai, this.anthropic, this.cacheService);
+    // Initialize Agent Manager with AI clients and cache service (only if we have AI clients)
+    if (this.openai && this.anthropic) {
+      this.agentManager = new AgentManager(this.openai, this.anthropic, this.cacheService);
+      Logger.info('✅ Agent Manager initialized');
+    } else {
+      Logger.warn('⚠️  Agent Manager not initialized - missing AI clients');
+    }
 
     Logger.info('✅ Core services initialized');
   }
 
   async initializeMCPServer() {
     try {
-      // Initialize MCP server with simplified configuration
-      this.mcpServer = new MCPServer({
-        enableAgentOrchestrator: true  // Enable agent orchestrator for unified tool handling
-      });
-      
-      // Pass AI clients to MCP server
-      if (this.openai) {
+      // Only initialize MCP server if we have AI clients
+      if (this.openai && this.anthropic) {
+        // Initialize MCP server with simplified configuration
+        this.mcpServer = new MCPServer({
+          enableAgentOrchestrator: true  // Enable agent orchestrator for unified tool handling
+        });
+        
+        // Pass AI clients to MCP server
         this.mcpServer.setOpenAIClient(this.openai);
-      }
-      if (this.anthropic) {
         this.mcpServer.setAnthropicClient(this.anthropic);
-      }
-      
-      // Pass AgentManager to MCP server for direct tool execution
-      if (this.agentManager) {
         this.mcpServer.setAgentManager(this.agentManager);
-      }
-
-      // Pass cache service to MCP server
-      if (this.cacheService) {
         this.mcpServer.setCacheService(this.cacheService);
-      }
-      
-      await this.mcpServer.initialize();
 
-      Logger.info('✅ MCP Server initialized');
+        // Initialize MCP server
+        await this.mcpServer.initialize();
+        
+        Logger.info('✅ MCP Server initialized successfully');
+      } else {
+        Logger.warn('⚠️  MCP Server not initialized - missing AI clients');
+      }
     } catch (error) {
       Logger.error('❌ Failed to initialize MCP server:', error);
-      throw error;
+      // Don't throw - continue without MCP server
     }
   }
 
   setupExpress() {
-    // Security middleware
+    // Security middleware - Secure CSP for production
     this.app.use(helmet({
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          styleSrc: ["'self'", "'unsafe-inline'", "https:"],
+          styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
           scriptSrc: ["'self'", "'unsafe-eval'"],
-          imgSrc: ["'self'", "data:", "https:"],
-          connectSrc: ["'self'", "https:", "wss:"]
+          imgSrc: ["'self'", "data:", "https:", "blob:"],
+          connectSrc: ["'self'", "https:", "wss:", "ws:"],
+          fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+          objectSrc: ["'none'"],
+          frameSrc: ["'none'"],
+          baseUri: ["'self'"],
+          formAction: ["'self'"]
         }
       }
     }));
 
-// CORS configuration
-const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    const allowedOrigins = process.env.NODE_ENV === 'production' 
-      ? process.env.ALLOWED_ORIGINS?.split(',') || ['https://yourdomain.com']
-      : [
-          'http://localhost:3000',
-          'http://localhost:5173',
-          'http://localhost:5174',
-          'http://localhost:8080',
-          'http://127.0.0.1:3000',
-        ];
-    
-    Logger.debug(`[CORS] Checking origin: ${origin}`);
-    
-    if (allowedOrigins.includes(origin)) {
-      Logger.debug(`[CORS] Origin ${origin} is allowed`);
-      callback(null, true);
-    } else {
-      Logger.warn(`[CORS] Origin ${origin} is NOT allowed`, { allowedOrigins });
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
-  optionsSuccessStatus: 200 // Some legacy browsers (IE11, various SmartTVs) choke on 204
-};    // Rate limiting
+    // Rate limiting
     const limiter = rateLimit({
       windowMs: 15 * 60 * 1000, // 15 minutes
       max: CONFIG.server.environment === 'production' ? 100 : 1000,
@@ -255,7 +232,43 @@ const corsOptions = {
     // Logging
     this.app.use(morgan('combined'));
 
-    // CORS configuration
+    // CORS - Secure configuration for Railway deployment
+    const corsOptions = {
+      origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        
+        const allowedOrigins = process.env.NODE_ENV === 'production' 
+          ? [
+              'https://plural-production.up.railway.app',
+              process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null,
+              ...(process.env.ALLOWED_ORIGINS?.split(',') || [])
+            ].filter(Boolean)
+          : [
+              'http://localhost:3000',
+              'http://localhost:5173',
+              'http://localhost:5174',
+              'http://localhost:8080',
+              'http://127.0.0.1:3000',
+              'https://plural-production.up.railway.app'
+            ];
+        
+        Logger.debug(`[CORS] Checking origin: ${origin}`);
+        
+        if (allowedOrigins.includes(origin)) {
+          Logger.debug(`[CORS] Origin ${origin} is allowed`);
+          callback(null, true);
+        } else {
+          Logger.warn(`[CORS] Origin ${origin} is NOT allowed`, { allowedOrigins });
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
+      optionsSuccessStatus: 200
+    };
+
     this.app.use(cors(corsOptions));
 
     // Body parsing
@@ -264,6 +277,23 @@ const corsOptions = {
 
     // Response compression
     this.app.use(compression());
+
+    // Serve static files from frontend build with better configuration
+    const frontendDistPath = path.join(__dirname, '..', 'frontend', 'dist');
+    this.app.use(express.static(frontendDistPath, {
+      maxAge: '1d', // Cache static files for 1 day
+      etag: true,
+      lastModified: true,
+      setHeaders: (res, path) => {
+        // Set proper MIME types for assets
+        if (path.endsWith('.js')) {
+          res.setHeader('Content-Type', 'application/javascript');
+        } else if (path.endsWith('.css')) {
+          res.setHeader('Content-Type', 'text/css');
+        }
+      }
+    }));
+    Logger.info(`📁 Serving frontend static files from: ${frontendDistPath}`);
 
     // Health check endpoint
     this.app.get('/health', (req, res) => {
@@ -773,6 +803,26 @@ const corsOptions = {
         });
       })
     );
+
+    // Catch-all handler for frontend SPA routing
+    this.app.get('*', (req, res) => {
+      // Don't serve index.html for API routes, assets, or other special paths
+      if (req.path.startsWith('/api/') || 
+          req.path.startsWith('/health') || 
+          req.path.startsWith('/mcp') ||
+          req.path.startsWith('/assets/') ||
+          req.path.includes('.') && !req.path.endsWith('.html')) {
+        return res.status(404).json({ error: 'Resource not found' });
+      }
+      
+      const indexPath = path.join(__dirname, '..', 'frontend', 'dist', 'index.html');
+      res.sendFile(indexPath, (err) => {
+        if (err) {
+          Logger.error('Error serving index.html:', err);
+          res.status(500).json({ error: 'Frontend application not available' });
+        }
+      });
+    });
 
     // Error handling middleware
     this.app.use(ErrorHandler.notFoundHandler);
