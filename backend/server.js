@@ -308,6 +308,10 @@ class EducationalPlatformServer {
           cache: cacheHealth.status,
           safety: 'active' // ContentSafetyManager is static
         },
+        apiConnections: {
+          openai: !!this.openai,
+          anthropic: !!this.anthropic
+        },
         cache: cacheHealth.stats
       });
     });
