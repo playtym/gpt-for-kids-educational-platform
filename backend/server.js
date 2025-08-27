@@ -936,7 +936,7 @@ class EducationalPlatformServer {
       })
     );
 
-    // Catch-all handler for frontend SPA routing
+    // Catch-all handler for frontend SPA routing (GET requests only)
     this.app.get('*', (req, res) => {
       // Don't serve index.html for API routes, assets, or other special paths
       if (req.path.startsWith('/api/') || 
